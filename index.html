@@ -130,7 +130,7 @@ if (__condition)
 
 ```c++
 using fwd(using auto x) {
-  return static_cast<decltype(x)>(x);
+  return std::forward<decltype(x)>(x);
 }
 
 auto before = [](auto&& x) {
@@ -139,6 +139,14 @@ auto before = [](auto&& x) {
 
 auto after = [](auto&& x) {
   use(fwd(x));
+};
+```
+
+desugars to
+
+```c++
+auto after = [](auto&& x) {
+  use(std::forward<decltype(x)>(x));
 };
 ```
 
