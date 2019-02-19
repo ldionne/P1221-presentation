@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <title>Compile-time programming in C++20 and beyond</title>
-    <meta name="author" content="Louis Dionne">
+    <title>Parametric expressions</title>
+    <meta name="author" content="Jason Rice">
 
     <!-- Theme used for syntax highlighting of code -->
     <link rel="stylesheet" href="highlight-styles/vs2015.css">
@@ -46,16 +46,363 @@
 
 ### P1221: Parametric expressions
 
-#### By Jason Rice
+#### Author: Jason Rice
+#### Presenter: Louis Dionne
 
 =====
 
+### The idea: a function without a type
+
 ```c++
-int main() {
-	std::cout << "hello";
+using add(auto a, auto b) {
+  return a + b;
+}
+
+int i = 40;
+int x = add(i, 2);
+```
+
+desugars roughly to
+
+```c++
+int i = 40;
+int x = ({
+  auto& a = i;
+  auto&& b = 2;
+  a + b; // result of expression
+});
+```
+
+====
+
+#### This gives us a couple of things that would be otherwise difficult
+
+====
+
+### `constexpr` parameters
+
+```c++
+using to_int_c(constexpr auto x) {
+  return std::integral_constant<int, x>{};
+}
+
+constexpr int a = 42;
+std::integral_constant<int, 42> foo = to_int_c(42);
+```
+
+desugars to
+
+```c++
+constexpr int a = 42;
+std::integral_constant<int, 42> foo = ({
+  constexpr auto x = a; // not auto&& here, by value
+  std::integral_constant<int, x>{};
+});
+```
+
+====
+
+### Lazy parameters
+
+```c++
+namespace log {
+  struct null_stream {
+    using operator<<(using auto) { return null_stream{}; }
+  };
+
+  using warn() {
+    if constexpr (log_level == Warning) return std::cerr;
+    else                                return null_stream{};
+  }
+}
+
+if (foo > 42)
+  log::warn() << "Foo is too large: " << foo << '\n';
+```
+
+====
+
+### Concise forwarding
+
+```c++
+using fwd(using auto x) {
+  return static_cast<decltype(x)>(x);
+}
+
+auto before = [](auto&& x) {
+  use(std::forward<decltype(x)>(x));
+};
+
+auto after = [](auto&& x) {
+  use(fwd(x));
+};
+```
+
+====
+
+### Passing overload sets
+
+```c++
+std::vector<int> xs = {1, 2, 3};
+auto result = std::reduce(xs.begin(), xs.end(), 0,
+                          overload_set(std::max));
+```
+
+```c++
+using overload_set(using auto f) {
+  return []<typename ...T>(T&& ...args)
+       noexcept(noexcept(f(std::forward<T>(args)...)))
+    -> decltype(f(std::forward<T>(args)...))
+  {
+    return f(std::forward<T>(args)...);
+  };
 }
 ```
 
+====
+
+### Recap about parameters
+
+<small>
+<table>
+  <tr>
+    <th>Declaration</th>
+    <th>Lvalue argument</th>
+    <th>Rvalue argument</th>
+  </tr>
+  <tr>
+    <td>using f(auto x)</td>
+    <td>auto&</td>
+    <td>auto&&</td>
+  </tr>
+  <tr>
+    <td>using f(constexpr auto x)</td>
+    <td>constexpr auto</td>
+    <td>constexpr auto</td>
+  </tr>
+  <tr>
+    <td>using f(using auto x)</td>
+    <td>token-pasted (lvalue)</td>
+    <td>token-pasted (rvalue)</td>
+  </tr>
+</table>
+</small>
+
+====
+
+### Single statements are special
+
+====
+
+### Body is in the immediate context
+
+```c++
+using twice(using auto x) { return x * 2; }
+
+template <typename T, typename = decltype(twice(x))>
+void foo(T x) {
+  std::cout << twice(x) << std::endl;
+}
+
+template <typename T>
+void foo(...) {
+  std::cout << "not implemented" << std::endl;
+}
+
+foo(3); // OK
+foo(std::string{"kitty"}); // OK, would normally be an error
+```
+
+====
+
+### They don't need a return type
+
+#### For example, returning an overload set:
+
+```c++
+using my_abs() {
+  return std::abs; // this is an overload set!
+}
+
+my_abs()(4);
+my_abs()(std::complex<float>{});
+```
+
+====
+
+#### Or creating and returning a parameter pack
+
+```
+template <typename T, T ...pack>
+using make_integer_sequence_impl(
+          std::integer_sequence<T, pack...>)
+{ return pack; }
+
+using make_integer_sequence(using auto i) {
+  return make_integer_sequence_impl(
+    std::make_integer_sequence<decltype(i), i>{}
+  );
+}
+
+int sum = (make_integer_sequence(5) + ...);
+```
+
+====
+
+### Basically, the AST node is replaced by the return statement
+
+====
+
+### Alternative syntax for single statements
+
+```c++
+using add(using auto x, using auto y) = x + y;
+```
+
+====
+
+### What about member functions?
+
+```c++
+template <typename ...T>
+struct tuple {
+  using operator[](constexpr auto i) {
+    return std::get<i>(*this);
+  }
+};
+
+tuple<int, char, float> tup = {1, 'x', 3.3f};
+char x = tup[1];
+```
+
+====
+
+### Desugaring for `*this` works as:
+
+```
+tuple<int, char, float> tup = {1, 'x', 3.3f};
+char x = tup[1];
+
+// equivalent to
+
+tuple<int, char, float> tup = {1, 'x', 3.3f};
+char x = ({
+  tuple<int, char, float>* __this = &tup;
+  std::get<i>(*__this);
+});
+```
+
+====
+
+#### Similar questions to [P0847](http://wg21.link/P0847) (deducing `*this`)
+
+- In case of inheritance, do we deduce to derived class or base class? Currently, always derived.
+- Should we allow specifying explicitly the `*this` parameter?
+- Don't get stuck here
+
+====
+
+### Can this be implemented????
+
+====
+
+### See for yourself:
+
+https://godbolt.org/z/Zo9ozy
+
+====
+
+### One last thing:
+
+Could reflection/metaclasses replace this feature?
+
+====
+
+## GO AWAY
+
+====
+
+### Polls
+
+====
+
+### Is "hygenic macros" a problem we want to solve?
+
+====
+
+### Do we like the general direction of this paper?
+
+i.e. do we see major concerns that would kill it
+
+====
+
+#### Allow specifying the type of _PE_ parameters?
+
+```c++
+using add(int a, int b)
+{ return a + b; }
+
+// instead of
+
+using add(auto a, auto b)
+{ return a + b; }
+```
+
+====
+
+#### Do we like the rules for deducing parameter types?
+
+<small>
+<table>
+  <tr>
+    <th>Declaration</th>
+    <th>Lvalue argument</th>
+    <th>Rvalue argument</th>
+  </tr>
+  <tr>
+    <td>using f(auto x)</td>
+    <td>auto&</td>
+    <td>auto&&</td>
+  </tr>
+  <tr>
+    <td>using f(constexpr auto x)</td>
+    <td>constexpr auto</td>
+    <td>constexpr auto</td>
+  </tr>
+  <tr>
+    <td>using f(using auto x)</td>
+    <td>token-pasted (lvalue)</td>
+    <td>token-pasted (rvalue)</td>
+  </tr>
+</table>
+</small>
+
+====
+
+#### Do we like the alternative syntax for single-statement _PE_?
+
+```c++
+using add(using auto x, using auto y) = x + y;
+```
+
+====
+
+#### Allow declaring a named parameter for `*this` in a member _PE_?
+
+```c++
+template <typename ...T>
+struct tuple {
+  using operator[](this auto self, constexpr auto i) {
+    return std::get<i>(self);
+  }
+
+  // or
+
+  using operator[](constexpr auto i) {
+    return std::get<i>(*this);
+  }
+};
+```
 
         </script>
         </section>
