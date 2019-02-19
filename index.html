@@ -1,0 +1,84 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>Compile-time programming in C++20 and beyond</title>
+    <meta name="author" content="Louis Dionne">
+
+    <!-- Theme used for syntax highlighting of code -->
+    <link rel="stylesheet" href="highlight-styles/vs2015.css">
+
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/black.css">
+
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'reveal/css/print/pdf.css' : 'reveal/css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+    <style>
+    .column {
+        float: left;
+        width: 50%;
+    }
+
+    /* Clear floats after the columns */
+    .row:after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+  </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section data-markdown=""
+                 data-separator="^====+$"
+                 data-separator-vertical="^----+$"
+                 data-notes="^Note:">
+        <script type="text/template">
+
+### P1221: Parametric expressions
+
+#### By Jason Rice
+
+=====
+
+```c++
+int main() {
+	std::cout << "hello";
+}
+```
+
+
+        </script>
+        </section>
+      </div>
+    </div>
+
+    <script src="js/reveal.js"></script>
+    <script src="lib/js/head.min.js"></script>
+
+    <script>
+      Reveal.initialize({
+        slideNumber: 'c', // 'c/t' -> useful when authoring to know how many slides there are
+        history: true,
+        transition: 'none',
+        controlsTutorial: false,
+
+        dependencies: [
+          { src: 'plugin/markdown/marked.js' },
+          { src: 'plugin/markdown/markdown.js' },
+          { src: 'plugin/notes/notes.js', async: true },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
+        ]
+      });
+    </script>
+  </body>
+</html>
