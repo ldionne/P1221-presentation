@@ -95,29 +95,33 @@ desugars to
 ```c++
 constexpr int a = 42;
 std::integral_constant<int, 42> foo = ({
-  constexpr auto x = a; // not auto&& here, by value
+  constexpr auto x = a;
   std::integral_constant<int, x>{};
 });
 ```
 
 ====
 
-### Lazy parameters
+### Lazy parameters (see also [P0927](https://wg21.link/P0927))
 
 ```c++
-namespace log {
-  struct null_stream {
-    using operator<<(using auto) { return null_stream{}; }
-  };
-
-  using warn() {
-    if constexpr (log_level == Warning) return std::cerr;
-    else                                return null_stream{};
-  }
+using log(bool condition, using auto message) {
+  if (condition) {
+    std::cerr << message;
 }
 
-if (foo > 42)
-  log::warn() << "Foo is too large: " << foo << '\n';
+log(value > threshold,
+    std::to_string(value) + " exceeds " +
+                      std::to_string(threshold));
+```
+
+desugars to
+
+```c++
+bool __condition = value > threshold;
+if (__condition)
+  std::cerr << (std::to_string(value) + " exceeds " +
+                            std::to_string(threshold)));
 ```
 
 ====
